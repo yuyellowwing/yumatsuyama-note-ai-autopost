@@ -31,7 +31,17 @@ YuMatsuyamaのnoteアカウント向けに、AIに関する最新情報を日本
 {"title":"...","body":"..."}
 `;
 
-const model = process.env.OPENAI_MODEL || "gpt-4o";
+const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+function readableOpenAIError(err) {
+  if (err?.code === "insufficient_quota" || err?.status === 429) {
+    return new Error("OpenAI API quota is unavailable. Please add billing or raise the project limit, then rerun.");
+  }
+  if (err?.status === 401) {
+    return new Error("OPENAI_API_KEY was rejected. Please recreate the GitHub secret with a valid OpenAI API key.");
+  }
+  return err;
+}
 
 function parseArticleJson(text) {
   const cleaned = text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
@@ -56,15 +66,20 @@ try {
   article = parseArticleJson(response.output_text || "");
 } catch (err) {
   const message = String(err?.message || err);
-  if (!message.includes("web_search") && !message.includes("Responses")) throw err;
+  if (err?.status === 429 || err?.code === "insufficient_quota" || err?.status === 401) throw readableOpenAIError(err);
+  if (!message.includes("web_search") && !message.includes("Responses")) throw readableOpenAIError(err);
 
   console.warn("Responses API web search unavailable, falling back to Chat Completions:", message);
-  const res = await client.chat.completions.create({
-    model,
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-  });
-  article = parseArticleJson(res.choices[0]?.message?.content || "");
+  try {
+    const res = await client.chat.completions.create({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+    });
+    article = parseArticleJson(res.choices[0]?.message?.content || "");
+  } catch (fallbackErr) {
+    throw readableOpenAIError(fallbackErr);
+  }
 }
 
 if (!article.title || !article.body) {
