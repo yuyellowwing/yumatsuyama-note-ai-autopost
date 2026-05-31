@@ -9,12 +9,6 @@ const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ storageState });
 const page = await context.newPage();
 
-async function clickByText(text) {
-  const button = page.getByRole("button", { name: text }).first();
-  await button.waitFor({ state: "visible", timeout: 15000 });
-  await button.click();
-}
-
 try {
   await page.goto("https://note.com/notes/new", { waitUntil: "networkidle" });
 
@@ -22,23 +16,30 @@ try {
     throw new Error("note login is required. Refresh NOTE_STORAGE_STATE_B64.");
   }
 
-  // タイトル欄を探してクリック → 入力
-  const titleField = page.locator('[placeholder="記事タイトル"], [data-placeholder="記事タイトル"], .editor-title, textarea[name="title"]').first();
-  await titleField.waitFor({ state: "visible", timeout: 15000 });
-  await titleField.click();
-  await titleField.fill(article.title);
+  // タイトル入力
+  const titleInput = page.getByPlaceholder("タイトル", { exact: true });
+  await titleInput.waitFor({ state: "visible", timeout: 15000 });
+  await titleInput.click();
+  await titleInput.fill(article.title);
 
-  // 本文欄を探してクリック → 入力
-  const bodyField = page.locator('.ProseMirror, [contenteditable="true"][class*="editor"], .note-editor__body [contenteditable]').first();
-  await bodyField.waitFor({ state: "visible", timeout: 15000 });
-  await bodyField.click();
+  // 本文入力（ProseMirrorエディタ）
+  const bodyEditor = page.locator(".ProseMirror");
+  await bodyEditor.waitFor({ state: "visible", timeout: 15000 });
+  await bodyEditor.click();
+  await page.waitForTimeout(500);
   await page.keyboard.insertText(article.body);
 
-  // 少し待ってから公開へ進む
   await page.waitForTimeout(1000);
 
-  await clickByText("公開に進む");
-  await clickByText("投稿する");
+  // 公開に進む
+  const proceedButton = page.getByRole("button", { name: "公開に進む", exact: true });
+  await proceedButton.waitFor({ state: "visible", timeout: 15000 });
+  await proceedButton.click();
+
+  // 投稿する
+  const submitButton = page.getByRole("button", { name: "投稿する", exact: true });
+  await submitButton.waitFor({ state: "visible", timeout: 15000 });
+  await submitButton.click();
 
   await page.getByText(/作品の完成|記事をシェア|投稿しました|公開しました/).first().waitFor({
     state: "visible",
