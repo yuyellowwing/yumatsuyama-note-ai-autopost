@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@playwright/test": "^1.44.0",
-    "openai": "^4.104.0"
+    "libsodium-wrappers": "^0.8.4",
+    "openai": "^4.104.0",
+    "tweetnacl": "^1.0.3"
   }
 }
