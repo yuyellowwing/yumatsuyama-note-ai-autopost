@@ -21,15 +21,30 @@ YuMatsuyamaのnoteアカウント向けに、AIに関する最新情報を日本
 {"title":"...","body":"..."}
 `;
 
-const response = await client.responses.create({
-  model: process.env.OPENAI_MODEL || "gpt-5.2",
-  input: prompt,
-  tools: [{ type: "web_search_preview" }],
-});
+const model = process.env.OPENAI_MODEL || "gpt-4o";
 
-const text = response.output_text.trim();
-const jsonText = text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
-const article = JSON.parse(jsonText);
+let article;
+
+// Responses API (web_search_preview 対応) を試みる。失敗したら Chat Completions にフォールバック
+try {
+  const response = await client.responses.create({
+    model,
+    input: prompt,
+    tools: [{ type: "web_search_preview" }],
+  });
+  const text = response.output_text.trim();
+  const jsonText = text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+  article = JSON.parse(jsonText);
+} catch (err) {
+  if (!String(err).includes("responses") && !String(err).includes("web_search")) throw err;
+  console.warn("Responses API unavailable, falling back to Chat Completions:", err.message);
+  const res = await client.chat.completions.create({
+    model,
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+  });
+  article = JSON.parse(res.choices[0].message.content);
+}
 
 if (!article.title || !article.body) {
   throw new Error("Article JSON must include title and body.");

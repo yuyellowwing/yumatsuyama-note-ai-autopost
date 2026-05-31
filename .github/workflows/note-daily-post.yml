@@ -2,7 +2,7 @@ name: YuMatsuyama note daily post
 
 on:
   schedule:
-    # 08:00 Japan time
+    # 08:00 Japan time = 23:00 UTC
     - cron: "0 23 * * *"
   workflow_dispatch:
 
@@ -17,19 +17,34 @@ jobs:
         with:
           node-version: "20"
 
-      - run: npm install
+      - name: Install dependencies
+        run: npm install
 
-      - run: npx playwright install --with-deps chromium
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
 
-      - name: Restore note login
+      - name: Restore note login state
         env:
           NOTE_STORAGE_STATE_B64: ${{ secrets.NOTE_STORAGE_STATE_B64 }}
         run: |
-          test -n "$NOTE_STORAGE_STATE_B64"
+          if [ -z "$NOTE_STORAGE_STATE_B64" ]; then
+            echo "ERROR: NOTE_STORAGE_STATE_B64 is not set in GitHub Secrets"
+            exit 1
+          fi
           echo "$NOTE_STORAGE_STATE_B64" | base64 -d > note-storage-state.json
+          echo "Login state restored."
 
-      - name: Generate and publish
+      - name: Generate article
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "ERROR: OPENAI_API_KEY is not set in GitHub Secrets"
+            exit 1
+          fi
+          node scripts/generate-article.mjs
+
+      - name: Post to note
+        env:
           NOTE_STORAGE_STATE: note-storage-state.json
-        run: npm run daily
+        run: node scripts/post-note.mjs
