@@ -1,0 +1,17 @@
+{
+  "name": "yumatsuyama-note-ai-autopost",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "article": "node scripts/generate-article.mjs",
+    "post": "node scripts/post-note.mjs",
+    "daily": "node scripts/generate-article.mjs && node scripts/post-note.mjs",
+    "login": "node scripts/save-note-login.mjs",
+    "login:chrome": "node scripts/save-note-login-cdp.mjs"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.44.0",
+    "openai": "^4.104.0"
+  }
+}

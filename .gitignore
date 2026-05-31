@@ -1,0 +1,5 @@
+node_modules/
+work/
+note-storage-state.json
+note-storage-state.b64
+.env

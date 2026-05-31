@@ -1,0 +1,36 @@
+name: YuMatsuyama note daily post
+
+on:
+  schedule:
+    # 08:00 Japan time
+    - cron: "0 23 * * *"
+  workflow_dispatch:
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm install
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Restore note login
+        env:
+          NOTE_STORAGE_STATE_B64: ${{ secrets.NOTE_STORAGE_STATE_B64 }}
+        run: |
+          test -n "$NOTE_STORAGE_STATE_B64"
+          echo "$NOTE_STORAGE_STATE_B64" | base64 -d > note-storage-state.json
+
+      - name: Generate and publish
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NOTE_STORAGE_STATE: note-storage-state.json
+        run: npm run daily
