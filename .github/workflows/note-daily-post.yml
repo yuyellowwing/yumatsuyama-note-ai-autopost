@@ -31,7 +31,8 @@ jobs:
             echo "ERROR: NOTE_STORAGE_STATE_B64 is not set in GitHub Secrets"
             exit 1
           fi
-          echo "$NOTE_STORAGE_STATE_B64" | base64 -d > note-storage-state.json
+          printf '%s' "$NOTE_STORAGE_STATE_B64" | tr -d '\r\n ' | base64 --decode > note-storage-state.json
+          node -e "const fs=require('fs'); const s=JSON.parse(fs.readFileSync('note-storage-state.json','utf8')); console.log('note cookies:', s.cookies?.length || 0); if(!s.cookies?.length) process.exit(1)"
           echo "Login state restored."
 
       - name: Generate article

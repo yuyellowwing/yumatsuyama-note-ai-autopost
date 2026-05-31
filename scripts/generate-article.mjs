@@ -22,10 +22,8 @@ YuMatsuyamaのnoteアカウント向けに、AIに関する最新情報を日本
 `;
 
 const model = process.env.OPENAI_MODEL || "gpt-4o";
-
 let article;
 
-// Responses API (web_search_preview 対応) を試みる。失敗したら Chat Completions にフォールバック
 try {
   const response = await client.responses.create({
     model,

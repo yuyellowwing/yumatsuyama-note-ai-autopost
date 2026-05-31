@@ -22,21 +22,19 @@ try {
     throw new Error("note login is required. Refresh NOTE_STORAGE_STATE_B64.");
   }
 
-  // タイトル欄を探してクリック → 入力
-  const titleField = page.locator('[placeholder="記事タイトル"], [data-placeholder="記事タイトル"], .editor-title, textarea[name="title"]').first();
+  const titleField = page
+    .locator('[placeholder="記事タイトル"], [data-placeholder="記事タイトル"], .editor-title, textarea[name="title"]')
+    .first();
   await titleField.waitFor({ state: "visible", timeout: 15000 });
   await titleField.click();
   await titleField.fill(article.title);
 
-  // 本文欄を探してクリック → 入力
   const bodyField = page.locator('.ProseMirror, [contenteditable="true"][class*="editor"], .note-editor__body [contenteditable]').first();
   await bodyField.waitFor({ state: "visible", timeout: 15000 });
   await bodyField.click();
   await page.keyboard.insertText(article.body);
 
-  // 少し待ってから公開へ進む
   await page.waitForTimeout(1000);
-
   await clickByText("公開に進む");
   await clickByText("投稿する");
 
