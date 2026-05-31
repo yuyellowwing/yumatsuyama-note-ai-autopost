@@ -8,7 +8,8 @@
     "post": "node scripts/post-note.mjs",
     "daily": "node scripts/generate-article.mjs && node scripts/post-note.mjs",
     "login": "node scripts/save-note-login.mjs",
-    "login:chrome": "node scripts/save-note-login-cdp.mjs"
+    "login:chrome": "node scripts/start-note-login-cdp.mjs",
+    "login:export": "node scripts/export-note-login-cdp.mjs"
   },
   "dependencies": {
     "@playwright/test": "^1.44.0",
