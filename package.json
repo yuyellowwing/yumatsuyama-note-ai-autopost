@@ -12,6 +12,7 @@
     "login:export": "node scripts/export-note-login-cdp.mjs"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@playwright/test": "^1.44.0",
     "libsodium-wrappers": "^0.8.4",
     "openai": "^4.104.0",

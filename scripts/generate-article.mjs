@@ -1,25 +1,21 @@
 import fs from "node:fs/promises";
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const outputPath = new URL("../work/today-note.json", import.meta.url);
-const apiKey = (process.env.OPENAI_API_KEY || "").replace(/\s+/g, "");
+const apiKey = (process.env.GEMINI_API_KEY || "").replace(/\s+/g, "");
 
 if (!apiKey) {
-  throw new Error("OPENAI_API_KEY is empty.");
+  throw new Error("GEMINI_API_KEY is empty. Please set it in GitHub Secrets.");
 }
 
-if (!apiKey.startsWith("sk-")) {
-  throw new Error("OPENAI_API_KEY does not look like an OpenAI API key. Please recreate the GitHub secret.");
-}
-
-const client = new OpenAI({ apiKey });
+const genAI = new GoogleGenerativeAI(apiKey);
 
 const prompt = `
 YuMatsuyamaのnoteアカウント向けに、AIに関する最新情報を日本語で毎日発信する記事を作ってください。
 
 条件:
-- 直近24時間を中心に、重要度の高いAIニュースを扱う
-- 公式発表、研究機関、主要AI企業、信頼できる技術メディアを優先する
+- 重要度の高いAIニュースや動向を扱う
+- 公式発表、研究機関、主要AI企業、信頼できる技術メディアの情報を優先する
 - 未確認情報や噂は避ける
 - 読者が短時間で価値を得られるようにする
 - タイトルと本文を返す
@@ -31,18 +27,6 @@ YuMatsuyamaのnoteアカウント向けに、AIに関する最新情報を日本
 {"title":"...","body":"..."}
 `;
 
-const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
-
-function readableOpenAIError(err) {
-  if (err?.code === "insufficient_quota" || err?.status === 429) {
-    return new Error("OpenAI API quota is unavailable. Please add billing or raise the project limit, then rerun.");
-  }
-  if (err?.status === 401) {
-    return new Error("OPENAI_API_KEY was rejected. Please recreate the GitHub secret with a valid OpenAI API key.");
-  }
-  return err;
-}
-
 function parseArticleJson(text) {
   const cleaned = text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
   try {
@@ -50,36 +34,45 @@ function parseArticleJson(text) {
   } catch {
     const start = cleaned.indexOf("{");
     const end = cleaned.lastIndexOf("}");
-    if (start === -1 || end === -1 || end <= start) throw new Error("OpenAI response did not contain JSON.");
+    if (start === -1 || end === -1 || end <= start) throw new Error("Gemini response did not contain JSON.");
     return JSON.parse(cleaned.slice(start, end + 1));
   }
 }
 
-let article;
-
-try {
-  const response = await client.responses.create({
-    model,
-    input: prompt,
-    tools: [{ type: "web_search_preview" }],
-  });
-  article = parseArticleJson(response.output_text || "");
-} catch (err) {
+function readableGeminiError(err) {
   const message = String(err?.message || err);
-  if (err?.status === 429 || err?.code === "insufficient_quota" || err?.status === 401) throw readableOpenAIError(err);
-  if (!message.includes("web_search") && !message.includes("Responses")) throw readableOpenAIError(err);
-
-  console.warn("Responses API web search unavailable, falling back to Chat Completions:", message);
-  try {
-    const res = await client.chat.completions.create({
-      model,
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-    });
-    article = parseArticleJson(res.choices[0]?.message?.content || "");
-  } catch (fallbackErr) {
-    throw readableOpenAIError(fallbackErr);
+  if (message.includes("API_KEY_INVALID") || message.includes("API key not valid")) {
+    return new Error("GEMINI_API_KEY was rejected. Please recreate the GitHub secret with a valid Gemini API key.");
   }
+  if (message.includes("429") || message.includes("quota") || message.includes("RESOURCE_EXHAUSTED")) {
+    return new Error("Gemini free quota reached for now. Try again later.");
+  }
+  return err;
+}
+
+const models = [process.env.GEMINI_MODEL || "gemini-2.0-flash", "gemini-1.5-flash"];
+
+let article;
+let lastErr;
+
+for (const modelName of models) {
+  try {
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      generationConfig: { responseMimeType: "application/json" },
+    });
+    const result = await model.generateContent(prompt);
+    article = parseArticleJson(result.response.text());
+    console.log(`Generated with model: ${modelName}`);
+    break;
+  } catch (err) {
+    lastErr = err;
+    console.warn(`Model ${modelName} failed: ${String(err?.message || err)}`);
+  }
+}
+
+if (!article) {
+  throw readableGeminiError(lastErr || new Error("All Gemini models failed."));
 }
 
 if (!article.title || !article.body) {
