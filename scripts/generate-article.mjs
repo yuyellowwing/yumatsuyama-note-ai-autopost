@@ -50,7 +50,7 @@ function readableGeminiError(err) {
   return err;
 }
 
-const models = [process.env.GEMINI_MODEL || "gemini-2.0-flash", "gemini-1.5-flash"];
+const models = [process.env.GEMINI_MODEL || "gemini-2.5-flash", "gemini-flash-latest"];
 
 let article;
 let lastErr;
