@@ -2,8 +2,8 @@ name: YuMatsuyama note daily post
 
 on:
   schedule:
-    # 08:00 Japan time = 23:00 UTC
-    - cron: "0 23 * * *"
+    # 07:00 Japan time = 22:00 UTC
+    - cron: "0 22 * * *"
   workflow_dispatch:
 
 jobs:
