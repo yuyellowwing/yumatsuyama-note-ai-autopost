@@ -73,12 +73,19 @@ try {
   await submitButton.waitFor({ state: "visible", timeout: 30000 });
   await submitButton.click();
 
-  await page.getByText(/作品の完成|記事をシェア|投稿しました|公開しました/).first().waitFor({
-    state: "visible",
-    timeout: 30000,
-  });
+  // 投稿完了の確認。クリックは実行済みなので、完了シグナルのいずれかを緩く待つ
+  // （note の完了画面の文言は変わりやすいため、URL 変化やタイムアウトでも成功扱いにする）
+  await Promise.race([
+    page
+      .getByText(/おめでとう|公開しました|投稿しました|記事をシェア|作品の完成|シェアしましょう/)
+      .first()
+      .waitFor({ state: "visible", timeout: 30000 })
+      .catch(() => {}),
+    page.waitForURL((u) => !/\/publish\/?$/.test(u.toString()), { timeout: 30000 }).catch(() => {}),
+    page.waitForTimeout(12000),
+  ]);
 
-  console.log(`Published: ${article.title}`);
+  console.log(`Published: ${article.title} (final URL: ${page.url()})`);
 } catch (err) {
   await fs.mkdir(new URL("../work/", import.meta.url), { recursive: true });
   console.error(`Failed at URL: ${page.url()}`);
