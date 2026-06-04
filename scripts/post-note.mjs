@@ -5,7 +5,7 @@ const articlePath = new URL("../work/today-note.json", import.meta.url);
 const article = JSON.parse(await fs.readFile(articlePath, "utf8"));
 const storageState = process.env.NOTE_STORAGE_STATE || "note-storage-state.json";
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: process.env.HEADLESS === "false" ? false : true });
 const context = await browser.newContext({
   storageState,
   locale: "ja-JP",
