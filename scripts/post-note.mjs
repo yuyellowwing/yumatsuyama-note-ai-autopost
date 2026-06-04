@@ -13,21 +13,53 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 
+// タイトル欄は note の仕様変更で placeholder が変わることがあるため複数候補を試す
+async function fillTitle(text) {
+  const selectors = [
+    'textarea[placeholder="記事タイトル"]',
+    '[data-placeholder="記事タイトル"]',
+    '[placeholder="記事タイトル"]',
+    'textarea[placeholder="タイトル"]',
+    '[data-placeholder="タイトル"]',
+    '[placeholder="タイトル"]',
+    'textarea[placeholder*="タイトル"]',
+    '[contenteditable="true"][data-placeholder*="タイトル"]',
+    'h1[contenteditable="true"]',
+  ];
+  for (const sel of selectors) {
+    const el = page.locator(sel).first();
+    if ((await el.count()) === 0) continue;
+    try {
+      await el.waitFor({ state: "visible", timeout: 4000 });
+      await el.click();
+      await el.fill(text);
+      console.log(`Title filled using: ${sel}`);
+      return;
+    } catch {
+      /* 次の候補へ */
+    }
+  }
+  throw new Error("Title field not found. note editor layout may have changed (or login expired).");
+}
+
 try {
   await page.goto("https://note.com/notes/new", { waitUntil: "networkidle" });
+  await page.waitForTimeout(2000);
 
-  if (/login|signin/.test(page.url())) {
-    throw new Error("note login is required. Refresh NOTE_STORAGE_STATE_B64.");
+  // ログイン切れの検出（URL と DOM の両方を確認）
+  const loginFormVisible = await page
+    .locator('input[type="password"], text=ログイン')
+    .first()
+    .isVisible()
+    .catch(() => false);
+  if (/login|signin/.test(page.url()) || loginFormVisible) {
+    throw new Error("note login is required. The saved login (NOTE_STORAGE_STATE_B64) has expired. Please re-export it.");
   }
 
-  // タイトル入力（Gemini推奨: getByPlaceholder が最も安定）
-  const titleInput = page.getByPlaceholder("タイトル", { exact: true });
-  await titleInput.waitFor({ state: "visible", timeout: 20000 });
-  await titleInput.click();
-  await titleInput.fill(article.title);
+  await fillTitle(article.title);
 
-  // 本文入力（ProseMirrorエディタ）
-  const bodyEditor = page.locator(".ProseMirror");
+  // 本文入力（ProseMirror エディタ）
+  const bodyEditor = page.locator(".ProseMirror").first();
   await bodyEditor.waitFor({ state: "visible", timeout: 20000 });
   await bodyEditor.click();
   await page.waitForTimeout(500);
@@ -52,7 +84,10 @@ try {
 
   console.log(`Published: ${article.title}`);
 } catch (err) {
+  // 失敗時はデバッグ情報とスクリーンショットを残す
   await fs.mkdir(new URL("../work/", import.meta.url), { recursive: true });
+  console.error(`Failed at URL: ${page.url()}`);
+  console.error(`Page title: ${await page.title().catch(() => "?")}`);
   await page.screenshot({ path: "work/note-post-error.png", fullPage: true }).catch(() => {});
   throw err;
 } finally {

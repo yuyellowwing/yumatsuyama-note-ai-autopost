@@ -49,3 +49,11 @@ jobs:
         env:
           NOTE_STORAGE_STATE: note-storage-state.json
         run: node scripts/post-note.mjs
+
+      - name: Upload error screenshot
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: note-post-error
+          path: work/note-post-error.png
+          if-no-files-found: ignore
