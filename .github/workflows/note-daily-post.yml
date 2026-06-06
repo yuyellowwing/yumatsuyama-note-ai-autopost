@@ -40,10 +40,10 @@ jobs:
 
       - name: Generate article
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          if [ -z "$OPENAI_API_KEY" ]; then
-            echo "ERROR: OPENAI_API_KEY is not set in GitHub Secrets"
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "ERROR: GEMINI_API_KEY is not set in GitHub Secrets"
             exit 1
           fi
           node scripts/generate-article.mjs
