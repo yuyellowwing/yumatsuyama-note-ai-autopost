@@ -2,31 +2,66 @@ name: YuMatsuyama note daily post
 
 on:
   schedule:
-    # 07:00 Japan time = 22:00 UTC
-    - cron: "0 22 * * *"
+    # Times are UTC. Japan time (JST) = UTC + 9 hours.
+    # Off-the-hour minutes + 3 morning attempts to dodge GitHub's busy on-the-hour skips.
+    # A "posted today" marker (state/last-post-date.txt) keeps it to ONE post per day.
+    - cron: "7 22 * * *"   # 07:07 JST (primary)
+    - cron: "37 22 * * *"  # 07:37 JST (backup 1, if the 07:07 run was skipped)
+    - cron: "17 23 * * *"  # 08:17 JST (backup 2, last resort)
   workflow_dispatch:
+
+# Never run two posts at once; a queued run will see the marker and skip.
+concurrency:
+  group: note-daily-post
+  cancel-in-progress: false
 
 jobs:
   post:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Needed so a successful run can commit the "posted today" marker back to the repo.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
+      - name: Skip if already posted today (scheduled runs only)
+        id: guard
+        run: |
+          TODAY="$(TZ=Asia/Tokyo date +%F)"
+          echo "today=$TODAY" >> "$GITHUB_OUTPUT"
+          LAST=""
+          if [ -f state/last-post-date.txt ]; then
+            LAST="$(tr -d '[:space:]' < state/last-post-date.txt)"
+          fi
+          echo "Today (JST): $TODAY | Last posted: ${LAST:-none} | Trigger: ${{ github.event_name }}"
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$LAST" = "$TODAY" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Already posted today -> this scheduled run will do nothing."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Proceeding to generate and post."
+          fi
+
       - uses: actions/setup-node@v4
+        if: steps.guard.outputs.skip != 'true' && success()
         with:
           node-version: "20"
 
       - name: Install dependencies
+        if: steps.guard.outputs.skip != 'true' && success()
         run: npm install
 
       - name: Install Playwright browsers
+        if: steps.guard.outputs.skip != 'true' && success()
         run: npx playwright install --with-deps chromium
 
       - name: Install xvfb (virtual display for headed browser)
+        if: steps.guard.outputs.skip != 'true' && success()
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
       - name: Restore note login state
+        if: steps.guard.outputs.skip != 'true' && success()
         env:
           NOTE_STORAGE_STATE_B64: ${{ secrets.NOTE_STORAGE_STATE_B64 }}
         run: |
@@ -39,6 +74,7 @@ jobs:
           echo "Login state restored."
 
       - name: Generate article
+        if: steps.guard.outputs.skip != 'true' && success()
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
@@ -49,10 +85,26 @@ jobs:
           node scripts/generate-article.mjs
 
       - name: Post to note
+        if: steps.guard.outputs.skip != 'true' && success()
         env:
           NOTE_STORAGE_STATE: note-storage-state.json
           HEADLESS: "false"
         run: xvfb-run -a node scripts/post-note.mjs
+
+      - name: Mark as posted today
+        if: steps.guard.outputs.skip != 'true' && success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p state
+          echo "${{ steps.guard.outputs.today }}" > state/last-post-date.txt
+          git add state/last-post-date.txt
+          if git diff --cached --quiet; then
+            echo "Marker already up to date; nothing to commit."
+          else
+            git commit -m "chore: mark note posted on ${{ steps.guard.outputs.today }}"
+            git push origin HEAD:master
+          fi
 
       - name: Upload error screenshot
         if: failure()
